@@ -9,14 +9,17 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="app">
+  <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
+    <div class="login-card"><div class="brand"><span class="brand-mark" aria-hidden="true">B</span><span>Bendahara<small>Ruang kerja keuangan</small></span></div><span class="eyebrow">SELAMAT DATANG</span><h1 id="loginTitle">Masuk ke akun Anda</h1><p>Catatan keuangan organisasi tersimpan aman dan siap diakses.</p><form id="loginForm"><label for="username">Username</label><input id="username" name="username" autocomplete="username" required placeholder="Masukkan username"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required placeholder="Masukkan password"><p class="error" id="loginError" role="alert" hidden></p><button class="button primary" type="submit">Masuk</button></form></div>
+  </section>
+  <div class="app" id="dashboard" hidden>
     <aside class="sidebar" aria-label="Navigasi utama">
       <div class="brand"><span class="brand-mark" aria-hidden="true">B</span><span>Bendahara<small>Ruang kerja keuangan</small></span></div>
       <nav><a class="nav-active" href="#ringkasan" aria-current="page">◫ <span>Ringkasan</span></a><a href="#transaksi">▤ <span>Transaksi</span></a></nav>
-      <div class="sidebar-note"><strong>Data tersimpan di perangkat ini</strong><p>Catatan hanya tersedia di browser ini. Unduh CSV secara berkala sebagai cadangan.</p></div>
+      <div class="sidebar-note"><strong>Data tersimpan di database</strong><p>Masuk dengan akun yang sama untuk melihat catatan dari perangkat lain.</p><button class="logout" id="logoutButton" type="button">Keluar dari akun</button></div>
     </aside>
     <main id="ringkasan">
-      <header class="topbar"><div><span class="eyebrow">DASHBOARD KEUANGAN</span><h1>Ringkasan keuangan</h1><p>Semua pemasukan dan pengeluaran, tercatat rapi dalam satu tempat.</p></div><button class="button primary" id="addButton" type="button"><span aria-hidden="true">＋</span> Tambah transaksi</button></header>
+      <header class="topbar"><div><span class="eyebrow">DASHBOARD KEUANGAN · <span id="currentUsername">admin</span></span><h1>Ringkasan keuangan</h1><p>Semua pemasukan dan pengeluaran, tercatat rapi dalam satu tempat.</p></div><div class="top-actions"><button class="button secondary mobile-logout" id="mobileLogoutButton" type="button">Keluar</button><button class="button primary" id="addButton" type="button"><span aria-hidden="true">＋</span> Tambah transaksi</button></div></header>
       <section class="summary" aria-label="Ringkasan saldo">
         <article class="card balance"><div class="card-label">Saldo saat ini <span aria-hidden="true">↗</span></div><strong id="balance">Rp0</strong><small>Selisih pemasukan dan pengeluaran</small></article>
         <article class="card"><div class="card-label">Total pemasukan <span class="icon income" aria-hidden="true">↙</span></div><strong id="income">Rp0</strong><small id="incomeCount">0 transaksi masuk</small></article>
