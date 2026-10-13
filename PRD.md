@@ -1,7 +1,7 @@
 # PRD — Aplikasi Bendahara
 
 ## Ringkasan
-Aplikasi web untuk bendahara mencatat pemasukan dan pengeluaran, memantau saldo, serta menyiapkan rekap yang mudah dibaca di komputer dan ponsel. Data transaksi tersimpan di database SQLite dan dapat dibuka dari beberapa perangkat menggunakan akun yang sama.
+Aplikasi web untuk bendahara mencatat pemasukan dan pengeluaran, memantau saldo, serta menyiapkan rekap yang mudah dibaca di komputer dan ponsel. Data transaksi tersimpan dalam berkas SQLite di komputer/server yang menjalankan aplikasi. Perangkat lain dapat mengakses data yang sama melalui server tersebut.
 
 ## Pengguna dan kebutuhan
 - Bendahara organisasi kecil perlu memasukkan transaksi dengan cepat dan melihat saldo terkini.
@@ -14,7 +14,7 @@ Aplikasi web untuk bendahara mencatat pemasukan dan pengeluaran, memantau saldo,
 3. Cari berdasarkan keterangan, kategori, atau catatan; filter jenis dan bulan.
 4. Ekspor transaksi terfilter ke CSV dengan format yang dapat dibuka spreadsheet.
 5. Login dan logout dengan akun bendahara. Akun awal `admin`/`admin`; password disimpan sebagai hash bcrypt.
-6. Simpan pengguna dan transaksi dalam tabel `users` dan `transactions` di SQLite (Cloudflare D1). API transaksi mensyaratkan sesi login.
+6. Simpan pengguna dan transaksi dalam tabel `user` dan `transaksi` di berkas `data/bendahara.sqlite`. API transaksi mensyaratkan sesi login.
 7. Antarmuka bahasa Indonesia, format rupiah, dapat dioperasikan dengan keyboard, label formulir, dan tata letak ponsel.
 
 ## Aturan data
@@ -22,10 +22,10 @@ Aplikasi web untuk bendahara mencatat pemasukan dan pengeluaran, memantau saldo,
 - Tanggal, jenis, kategori, dan keterangan wajib diisi.
 - Saldo = seluruh pemasukan dikurangi seluruh pengeluaran. Angka ringkasan saat filter aktif dihitung dari transaksi yang tampil.
 - Urutan transaksi dari tanggal terbaru, lalu waktu pencatatan terbaru.
-- Penghapusan memerlukan konfirmasi. Data browser dapat hilang bila penyimpanan situs dibersihkan.
+- Penghapusan memerlukan konfirmasi. Berkas SQLite perlu dicadangkan secara berkala.
 
 ## Alur utama
-1. Pengguna membuka dashboard dan melihat saldo seluruh catatan.
+1. Pengguna masuk dengan akun bendahara, lalu melihat saldo seluruh catatan.
 2. Pengguna memilih “Tambah transaksi”, mengisi formulir, lalu menyimpan.
 3. Dashboard dan daftar langsung diperbarui.
 4. Pengguna dapat mencari, menyaring bulan/jenis, mengubah atau menghapus transaksi, lalu mengunduh CSV.

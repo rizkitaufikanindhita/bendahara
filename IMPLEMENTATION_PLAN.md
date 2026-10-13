@@ -1,24 +1,24 @@
-# Implementation plan — login dan SQLite
+# Rencana implementasi — login dan SQLite berkas
 
 ## Tujuan
-Mengganti penyimpanan transaksi di browser dengan database SQLite pada hosting (Cloudflare D1), serta menambahkan login aplikasi menggunakan pengguna awal `admin` dan kata sandi awal `admin`. Kata sandi disimpan sebagai hash bcrypt, bukan teks asli.
+Menjalankan aplikasi web Bendahara dengan database SQLite **di berkas lokal** `data/bendahara.sqlite`. Pengguna awal adalah `admin` dengan password `admin`; yang disimpan ke database hanya hash bcrypt.
 
-## Langkah implementasi
-1. Ubah proyek statis menjadi aplikasi server yang tetap menyajikan antarmuka responsif yang ada.
-2. Tambahkan skema SQLite: tabel `users` untuk identitas dan hash kata sandi, serta tabel `transactions` untuk catatan keuangan dengan relasi pemilik.
-3. Buat migrasi skema yang dijalankan saat deploy. Buat pengguna awal secara idempoten saat login pertama jika tabel pengguna masih kosong.
-4. Tambahkan endpoint login, logout, pemeriksaan sesi, serta CRUD transaksi. Validasi seluruh input dan hak akses di server.
-5. Gunakan cookie sesi `HttpOnly`, `Secure` saat HTTPS, `SameSite=Lax`, dan tanda tangan HMAC. Hash dan verifikasi kata sandi menggunakan bcrypt.
-6. Ubah frontend agar menampilkan layar login dan membaca/menulis transaksi melalui API, bukan localStorage.
-7. Uji login berhasil/gagal, pembatasan API tanpa sesi, CRUD, persistensi database, dan tata letak ponsel. Bangun dan publikasikan versi baru.
+## Langkah
+1. Gunakan server Node.js untuk menyajikan antarmuka web responsif dan endpoint API.
+2. Buat berkas SQLite otomatis saat server pertama kali dijalankan, dengan tabel `user` dan `transaksi`, relasi pemilik, dan indeks pencarian.
+3. Buat akun awal `admin` secara idempoten dengan hash bcrypt. Jangan menyimpan password teks biasa di tabel.
+4. Implementasikan login, logout, cookie sesi bertanda tangan, dan CRUD transaksi yang memeriksa pemilik di server.
+5. Gunakan antarmuka yang ada untuk login, dashboard, filter, form transaksi, dan CSV; semua transaksi dibaca dari API.
+6. Uji isi berkas SQLite, login benar/salah, API tanpa sesi, CRUD, persistensi setelah server dimulai ulang, dan tampilan ponsel.
+7. Dokumentasikan cara menjalankan server dan cara membuka dari ponsel dalam jaringan yang sama.
 
-## Kriteria selesai
-- Tabel `users` dan `transactions` tersedia di SQLite dengan migrasi yang tercatat.
-- Akun awal `admin`/`admin` dapat masuk, dan `users.password_hash` berisi hash bcrypt.
-- API transaksi menolak permintaan tanpa sesi; hanya transaksi pemilik yang dapat diubah/dihapus.
-- Data transaksi tetap ada setelah halaman dimuat ulang dan saat dibuka dari perangkat lain dengan akun yang sama.
-- Login, dashboard, form transaksi, dan logout dapat digunakan di komputer dan ponsel.
+## Kriteria penerimaan
+- `data/bendahara.sqlite` benar-benar muncul dan berisi tabel `user` serta `transaksi`.
+- Baris `admin` memiliki `password_hash` bcrypt; login `admin`/`admin` berhasil dan password salah ditolak.
+- Transaksi yang dibuat lewat API berada di berkas, dapat dibaca setelah server dimulai ulang, dan tidak dapat diakses tanpa login.
+- Halaman login dan dashboard tetap dapat digunakan pada lebar layar 320 px.
 
 ## Batasan
-- Kata sandi awal `admin` adalah permintaan eksplisit, sehingga harus segera diganti sebelum data nyata dipakai. Pergantian kata sandi dan multiakun dapat ditambahkan pada iterasi berikutnya.
-- Data localStorage versi terdahulu tidak dipindahkan otomatis; pengguna dapat mengunduh CSV dari versi sebelumnya sebelum beralih.
+- Berkas SQLite ada pada komputer/server yang menjalankan Node.js. Agar ponsel dapat mengaksesnya, server dan ponsel harus saling terhubung melalui jaringan atau server tersebut perlu dihosting pada layanan dengan disk persisten.
+- Site lama yang pernah dipublikasikan memakai D1 dan tidak tersambung ke berkas lokal ini.
+- Data lama di D1/localStorage tidak dipindahkan otomatis.
