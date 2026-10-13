@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f7f3">
+  <meta name="description" content="Catat pemasukan dan pengeluaran, pantau saldo, dan unduh laporan keuangan sederhana.">
+  <title>Bendahara — Catatan Keuangan</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" aria-label="Navigasi utama">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">B</span><span>Bendahara<small>Ruang kerja keuangan</small></span></div>
+      <nav><a class="nav-active" href="#ringkasan" aria-current="page">◫ <span>Ringkasan</span></a><a href="#transaksi">▤ <span>Transaksi</span></a></nav>
+      <div class="sidebar-note"><strong>Data tersimpan di perangkat ini</strong><p>Catatan hanya tersedia di browser ini. Unduh CSV secara berkala sebagai cadangan.</p></div>
+    </aside>
+    <main id="ringkasan">
+      <header class="topbar"><div><span class="eyebrow">DASHBOARD KEUANGAN</span><h1>Ringkasan keuangan</h1><p>Semua pemasukan dan pengeluaran, tercatat rapi dalam satu tempat.</p></div><button class="button primary" id="addButton" type="button"><span aria-hidden="true">＋</span> Tambah transaksi</button></header>
+      <section class="summary" aria-label="Ringkasan saldo">
+        <article class="card balance"><div class="card-label">Saldo saat ini <span aria-hidden="true">↗</span></div><strong id="balance">Rp0</strong><small>Selisih pemasukan dan pengeluaran</small></article>
+        <article class="card"><div class="card-label">Total pemasukan <span class="icon income" aria-hidden="true">↙</span></div><strong id="income">Rp0</strong><small id="incomeCount">0 transaksi masuk</small></article>
+        <article class="card"><div class="card-label">Total pengeluaran <span class="icon expense" aria-hidden="true">↗</span></div><strong id="expense">Rp0</strong><small id="expenseCount">0 transaksi keluar</small></article>
+      </section>
+      <section class="transactions" id="transaksi" aria-labelledby="transactionsTitle"><div class="section-head"><div><h2 id="transactionsTitle">Daftar transaksi</h2><p id="countText">0 transaksi tercatat</p></div><button class="button secondary" id="exportButton" type="button">↓ Unduh CSV</button></div>
+        <div class="filters"><label class="search-label"><span class="sr-only">Cari transaksi</span><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Cari transaksi..."></label><label><span class="sr-only">Filter bulan</span><input id="month" type="month" aria-label="Filter bulan"></label><label><span class="sr-only">Filter jenis</span><select id="typeFilter" aria-label="Filter jenis"><option value="all">Semua jenis</option><option value="income">Pemasukan</option><option value="expense">Pengeluaran</option></select></label></div>
+        <div class="table-wrap"><table><thead><tr><th scope="col">Transaksi</th><th scope="col">Tanggal</th><th scope="col">Kategori</th><th scope="col">Jumlah</th><th scope="col"><span class="sr-only">Tindakan</span></th></tr></thead><tbody id="transactionRows"></tbody></table></div><div id="emptyState" class="empty" hidden><span aria-hidden="true">▤</span><h3>Belum ada transaksi</h3><p>Tambah catatan pertama Anda atau ubah filter untuk melihat transaksi.</p><button class="button primary" id="emptyAddButton" type="button">Tambah transaksi</button></div>
+      </section>
+      <footer>© Bendahara · Pencatatan sederhana untuk organisasi Anda</footer>
+    </main>
+  </div>
+  <dialog id="transactionDialog" aria-labelledby="dialogTitle"><form id="transactionForm" novalidate><div class="dialog-head"><div><span class="eyebrow">CATATAN KEUANGAN</span><h2 id="dialogTitle">Tambah transaksi</h2></div><button class="close" id="closeDialog" type="button" aria-label="Tutup formulir">×</button></div><div class="form-body"><fieldset><legend>Jenis transaksi</legend><div class="type-options"><label><input type="radio" name="type" value="income" checked><span>↙ Pemasukan</span></label><label><input type="radio" name="type" value="expense"><span>↗ Pengeluaran</span></label></div></fieldset><div class="form-grid"><label>Tanggal <input id="date" name="date" type="date" required></label><label>Nominal (Rp) <input id="amount" name="amount" type="number" min="1" step="1" inputmode="numeric" placeholder="Contoh: 50000" required></label></div><label>Kategori <select id="category" name="category" required></select></label><label>Keterangan <input id="description" name="description" maxlength="100" placeholder="Contoh: Iuran anggota" required></label><label>Catatan <span class="optional">(opsional)</span><textarea id="note" name="note" rows="3" maxlength="300" placeholder="Tambahkan detail bila perlu"></textarea></label><p id="formError" class="error" role="alert" hidden></p></div><div class="dialog-actions"><button class="button secondary" id="cancelButton" type="button">Batal</button><button class="button primary" type="submit">Simpan transaksi</button></div></form></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js" defer></script>
+</body>
+</html>
