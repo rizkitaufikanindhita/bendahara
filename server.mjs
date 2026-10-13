@@ -5,15 +5,19 @@ import { fileURLToPath } from 'node:url';
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import pg from 'pg';
 import bcrypt from 'bcryptjs';
+import { attachDatabasePool } from '@vercel/functions';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(root, 'public');
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL belum diatur. Jalankan neon deploy terlebih dahulu.');
-const db = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
-const schema = await readFile(path.join(root, 'migrations', '001_initial.sql'), 'utf8');
-const migrationDb = new pg.Client({ connectionString: process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL });
-await migrationDb.connect();
-try { await migrationDb.query(schema); } finally { await migrationDb.end(); }
+const db = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 5, idleTimeoutMillis: 5000 });
+if (process.env.VERCEL) attachDatabasePool(db);
+if (!process.env.VERCEL) {
+  const schema = await readFile(path.join(root, 'migrations', '001_initial.sql'), 'utf8');
+  const migrationDb = new pg.Client({ connectionString: process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL });
+  await migrationDb.connect();
+  try { await migrationDb.query(schema); } finally { await migrationDb.end(); }
+}
 const existingAdmin = (await db.query('SELECT id FROM app_user WHERE username = $1', ['admin'])).rows[0];
 if (!existingAdmin) {
   const initialPassword = process.env.ADMIN_PASSWORD || (process.env.NODE_ENV === 'production' ? null : 'admin');
@@ -161,6 +165,6 @@ const server = createServer(async (request, response) => {
 });
 
 const port = Number(process.env.PORT || 3000);
-const host = process.env.HOST || '127.0.0.1';
+const host = process.env.HOST || (process.env.VERCEL ? '0.0.0.0' : '127.0.0.1');
 server.listen(port, host, () => console.log(`Bendahara berjalan di http://${host}:${port} — Neon Postgres`));
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => { server.close(); void db.end(); });
