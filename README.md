@@ -1,36 +1,34 @@
 # Bendahara
 
-Aplikasi web pencatatan keuangan dengan login dan **SQLite dalam berkas**. Database dibuat otomatis di `data/bendahara.sqlite` saat server pertama kali dijalankan. Tabelnya bernama `user` dan `transaksi`.
+Aplikasi pencatatan keuangan dengan server Node.js dan database Postgres di Neon. Login dan API tetap dijalankan oleh aplikasi; Neon menyimpan pengguna serta transaksi.
 
 ## Menjalankan
 
-Perlu Node.js versi 22.13 atau lebih baru.
+Perlu Node.js 22.13 atau lebih baru. Proyek sudah terhubung ke proyek Neon `red-sunset-82753362`, cabang `production`.
 
 ```powershell
-cd D:\IT\apps_bendahara
 npm install
+neon deploy
+npm run build
 npm start
 ```
 
-Buka `http://localhost:3000` di browser. Login awal: **admin / admin**. Password disimpan sebagai hash bcrypt, bukan teks biasa. Server perlu tetap berjalan selama aplikasi digunakan; hentikan dengan `Ctrl+C`.
+`neon deploy` menarik `DATABASE_URL` (koneksi pooled) dan `DATABASE_URL_UNPOOLED` (koneksi langsung) ke `.env.local`. Berkas ini diabaikan Git. Buka `http://localhost:3000` setelah server berjalan. Skema tabel dibuat dari `migrations/001_initial.sql` saat server dimulai.
 
-Untuk membuka dari ponsel dalam jaringan Wi-Fi yang sama, jalankan server agar mendengarkan koneksi jaringan:
+Akun awal bernama `admin`. Kata sandi awal diambil dari `ADMIN_PASSWORD` pada `.env.local`. Untuk instalasi lokal yang belum memiliki nilai itu, aplikasi memakai `admin`; pada `NODE_ENV=production`, kata sandi harus diberikan sebelum akun pertama dibuat. `SESSION_SECRET` harus diatur pada production agar sesi login tetap berlaku antarinstance. Jangan masukkan kedua nilai rahasia itu ke Git.
+
+## Impor dari SQLite lama
+
+Jika ada berkas `data/bendahara.sqlite`, jalankan setelah aplikasi pertama kali membuat skema:
 
 ```powershell
-$env:HOST = '0.0.0.0'
-npm start
+npm run import:sqlite
 ```
 
-Di ponsel, buka `http://IP-KOMPUTER:3000`. IP komputer dapat dilihat dengan `ipconfig`. Komputer harus tetap menyala; aturan firewall mungkin perlu mengizinkan port 3000 pada jaringan pribadi. Karena HTTP di jaringan lokal tidak mengenkripsi lalu lintas, gunakan hanya jaringan yang dipercaya. Untuk akses dari internet, tempatkan aplikasi pada server Node dengan disk persisten dan HTTPS.
+Perintah ini menyalin transaksi yang belum ada berdasarkan ID. Jika akun dengan nama yang sama sudah ada di Neon, kata sandinya tetap seperti semula dan transaksi lama dipetakan ke akun tersebut. Berkas SQLite asli tetap utuh sebagai cadangan.
 
-## Data dan cadangan
+## Deploy aplikasi
 
-- Lokasi database: `data/bendahara.sqlite` (diabaikan Git).
-- Cadangkan berkas SQLite saat server berhenti, atau gunakan fitur **Unduh CSV** untuk salinan transaksi.
-- Sesi login akan berakhir saat server dimulai ulang; data transaksi tetap ada dalam berkas.
-- Jika berkas dihapus, aplikasi akan membuat database baru dengan akun awal `admin`/`admin`.
-- Data dari versi lama (D1 atau localStorage) tidak dipindahkan otomatis.
+`neon deploy` menyiapkan layanan Postgres dan variabel lingkungan lokal; perintah itu tidak mempublikasikan aplikasi web. Pada host aplikasi, atur `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `SESSION_SECRET`, dan `ADMIN_PASSWORD` sebagai variabel lingkungan. Jalankan `npm run build` sebelum memublikasikan kode.
 
-Site yang sebelumnya dipublikasikan dengan Cloudflare D1 adalah versi lama dan **tidak memakai berkas SQLite lokal ini**.
-
-Lihat [PRD.md](PRD.md) dan [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) untuk cakupan dan langkah implementasi.
+File `.codex/config.toml` menghubungkan Neon MCP ke proyek ini. Skill Neon terpasang di tingkat pengguna; konfigurasi global lain tidak diubah oleh aplikasi.

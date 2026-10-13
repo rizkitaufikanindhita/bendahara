@@ -9,3 +9,6 @@ dist/
 *.tsbuildinfo
 *.zip
 npm-debug.log*
+.neon
+.env.local
+.env

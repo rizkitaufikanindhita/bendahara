@@ -1,44 +1,29 @@
 import { createServer } from 'node:http';
-import { readFile, mkdir } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { DatabaseSync } from 'node:sqlite';
+import pg from 'pg';
 import bcrypt from 'bcryptjs';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(root, 'public');
-const databasePath = path.resolve(process.env.BENDAHARA_DB_PATH || path.join(root, 'data', 'bendahara.sqlite'));
-await mkdir(path.dirname(databasePath), { recursive: true });
-const db = new DatabaseSync(databasePath);
-db.exec('PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
-db.exec(`
-  CREATE TABLE IF NOT EXISTS user (
-    id TEXT PRIMARY KEY,
-    username TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    created_at INTEGER NOT NULL
-  );
-  CREATE TABLE IF NOT EXISTS transaksi (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
-    type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
-    date TEXT NOT NULL,
-    amount INTEGER NOT NULL CHECK (amount > 0),
-    category TEXT NOT NULL,
-    description TEXT NOT NULL,
-    note TEXT NOT NULL DEFAULT '',
-    created_at INTEGER NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS transaksi_user_date_idx ON transaksi(user_id, date);
-`);
-
-if (!db.prepare('SELECT id FROM user WHERE username = ?').get('admin')) {
-  db.prepare('INSERT INTO user (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)')
-    .run(randomUUID(), 'admin', bcrypt.hashSync('admin', 12), Date.now());
+if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL belum diatur. Jalankan neon deploy terlebih dahulu.');
+const db = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
+const schema = await readFile(path.join(root, 'migrations', '001_initial.sql'), 'utf8');
+const migrationDb = new pg.Client({ connectionString: process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL });
+await migrationDb.connect();
+try { await migrationDb.query(schema); } finally { await migrationDb.end(); }
+const existingAdmin = (await db.query('SELECT id FROM app_user WHERE username = $1', ['admin'])).rows[0];
+if (!existingAdmin) {
+  const initialPassword = process.env.ADMIN_PASSWORD || (process.env.NODE_ENV === 'production' ? null : 'admin');
+  if (!initialPassword) throw new Error('ADMIN_PASSWORD wajib diatur untuk membuat akun awal pada production.');
+  await db.query('INSERT INTO app_user (id, username, password_hash, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (username) DO NOTHING',
+    [randomUUID(), 'admin', bcrypt.hashSync(initialPassword, 12), Date.now()]);
 }
 
-const sessionKey = randomBytes(32);
+if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) throw new Error('SESSION_SECRET wajib diatur pada lingkungan production.');
+const sessionKey = process.env.SESSION_SECRET || randomBytes(32);
 const cookieName = 'bendahara_session';
 const sessionSeconds = 60 * 60 * 24 * 7;
 const categories = {
@@ -57,7 +42,7 @@ function makeSession(userId) {
   return `${payload}.${signature}`;
 }
 
-function getUser(request) {
+async function getUser(request) {
   const cookie = request.headers.cookie?.split(';').map((part) => part.trim()).find((part) => part.startsWith(`${cookieName}=`));
   const token = cookie?.slice(cookieName.length + 1);
   if (!token) return null;
@@ -69,12 +54,13 @@ function getUser(request) {
     if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
     const session = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
     if (typeof session.id !== 'string' || !Number.isSafeInteger(session.exp) || session.exp <= Math.floor(Date.now() / 1000)) return null;
-    return db.prepare('SELECT id, username FROM user WHERE id = ?').get(session.id) || null;
+    const result = await db.query('SELECT id, username FROM app_user WHERE id = $1', [session.id]);
+    return result.rows[0] || null;
   } catch { return null; }
 }
 
 function cookieHeader(value, request, maxAge = sessionSeconds) {
-  const secure = request.socket.encrypted ? '; Secure' : '';
+  const secure = request.socket.encrypted || request.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
   return `${cookieName}=${value}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${secure}`;
 }
 
@@ -111,16 +97,18 @@ async function handleApi(request, response, pathname) {
   if (pathname === '/api/auth/login' && request.method === 'POST') {
     let body; try { body = await jsonBody(request); } catch { return reply(response, 400, { error: 'Data login tidak valid.' }); }
     if (!body || typeof body.username !== 'string' || typeof body.password !== 'string' || body.username.length > 50 || body.password.length > 200) return reply(response, 400, { error: 'Data login tidak valid.' });
-    const user = db.prepare('SELECT id, username, password_hash AS passwordHash FROM user WHERE username = ?').get(body.username.trim());
+    const user = (await db.query('SELECT id, username, password_hash AS "passwordHash" FROM app_user WHERE username = $1', [body.username.trim()])).rows[0];
     if (!user || !bcrypt.compareSync(body.password, user.passwordHash)) return reply(response, 401, { error: 'Username atau password salah.' });
     return reply(response, 200, { user: { id: user.id, username: user.username } }, { 'Set-Cookie': cookieHeader(makeSession(user.id), request) });
   }
   if (pathname === '/api/auth/logout' && request.method === 'POST') return reply(response, 200, { ok: true }, { 'Set-Cookie': cookieHeader('', request, 0) });
-  const user = getUser(request);
+  const user = await getUser(request);
   if (!user) return reply(response, 401, { error: 'Silakan masuk terlebih dahulu.' });
   if (pathname === '/api/auth/me' && request.method === 'GET') return reply(response, 200, { user });
   if (pathname === '/api/transactions' && request.method === 'GET') {
-    const transactions = db.prepare('SELECT id, type, date, amount, category, description, note, created_at AS createdAt FROM transaksi WHERE user_id = ? ORDER BY date DESC, created_at DESC').all(user.id);
+    const transactions = (await db.query(`SELECT id, type, to_char(date, 'YYYY-MM-DD') AS date, amount::float8 AS amount,
+      category, description, note, created_at::float8 AS "createdAt"
+      FROM transaksi WHERE user_id = $1 ORDER BY date DESC, created_at DESC`, [user.id])).rows;
     return reply(response, 200, { transactions });
   }
   if (pathname === '/api/transactions' && request.method === 'POST') {
@@ -128,8 +116,8 @@ async function handleApi(request, response, pathname) {
     const item = parseTransaction(body);
     if (!item) return reply(response, 400, { error: 'Isi transaksi tidak valid.' });
     const id = randomUUID(), createdAt = Date.now();
-    db.prepare('INSERT INTO transaksi (id, user_id, type, date, amount, category, description, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, user.id, item.type, item.date, item.amount, item.category, item.description, item.note, createdAt);
+    await db.query('INSERT INTO transaksi (id, user_id, type, date, amount, category, description, note, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+      [id, user.id, item.type, item.date, item.amount, item.category, item.description, item.note, createdAt]);
     return reply(response, 201, { transaction: { id, ...item, createdAt } });
   }
   const match = /^\/api\/transactions\/([0-9a-f-]{36})$/.exec(pathname);
@@ -137,13 +125,13 @@ async function handleApi(request, response, pathname) {
     let body; try { body = await jsonBody(request); } catch { return reply(response, 400, { error: 'Data transaksi tidak valid.' }); }
     const item = parseTransaction(body);
     if (!item) return reply(response, 400, { error: 'Isi transaksi tidak valid.' });
-    const result = db.prepare('UPDATE transaksi SET type = ?, date = ?, amount = ?, category = ?, description = ?, note = ? WHERE id = ? AND user_id = ?')
-      .run(item.type, item.date, item.amount, item.category, item.description, item.note, match[1], user.id);
-    return result.changes ? reply(response, 200, { transaction: { id: match[1], ...item } }) : reply(response, 404, { error: 'Transaksi tidak ditemukan.' });
+    const result = await db.query('UPDATE transaksi SET type = $1, date = $2, amount = $3, category = $4, description = $5, note = $6 WHERE id = $7 AND user_id = $8',
+      [item.type, item.date, item.amount, item.category, item.description, item.note, match[1], user.id]);
+    return result.rowCount ? reply(response, 200, { transaction: { id: match[1], ...item } }) : reply(response, 404, { error: 'Transaksi tidak ditemukan.' });
   }
   if (match && request.method === 'DELETE') {
-    const result = db.prepare('DELETE FROM transaksi WHERE id = ? AND user_id = ?').run(match[1], user.id);
-    return result.changes ? reply(response, 200, { ok: true }) : reply(response, 404, { error: 'Transaksi tidak ditemukan.' });
+    const result = await db.query('DELETE FROM transaksi WHERE id = $1 AND user_id = $2', [match[1], user.id]);
+    return result.rowCount ? reply(response, 200, { ok: true }) : reply(response, 404, { error: 'Transaksi tidak ditemukan.' });
   }
   return reply(response, 404, { error: 'Endpoint tidak ditemukan.' });
 }
@@ -174,5 +162,5 @@ const server = createServer(async (request, response) => {
 
 const port = Number(process.env.PORT || 3000);
 const host = process.env.HOST || '127.0.0.1';
-server.listen(port, host, () => console.log(`Bendahara berjalan di http://${host}:${port} — SQLite: ${databasePath}`));
-for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => { server.close(); db.close(); process.exit(0); });
+server.listen(port, host, () => console.log(`Bendahara berjalan di http://${host}:${port} — Neon Postgres`));
+for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => { server.close(); void db.end(); });
