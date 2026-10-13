@@ -72,7 +72,9 @@ function openForm(item = null) {
   $('#dialogTitle').textContent = item ? 'Ubah transaksi' : 'Tambah transaksi';
   $(`input[name="type"][value="${item?.type || 'income'}"]`).checked = true;
   updateCategories(item?.category);
-  $('#date').value = item?.date || new Date().toLocaleDateString('en-CA');
+  const today = new Date();
+  const localDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  $('#date').value = item?.date || localDate;
   $('#amount').value = item?.amount || '';
   $('#description').value = item?.description || '';
   $('#note').value = item?.note || '';
@@ -97,13 +99,18 @@ function submitForm(event) {
   if (!saveTransactions()) { transactions = previous; return; }
   closeForm(); render(); showToast(old ? 'Transaksi berhasil diubah.' : 'Transaksi berhasil ditambahkan.');
 }
-function escapeCsv(value) { return `"${String(value ?? '').replaceAll('"', '""')}"`; }
+function escapeCsv(value) {
+  let text = String(value ?? '');
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  return `"${text.replaceAll('"', '""')}"`;
+}
 function exportCsv() {
   const rows = filteredTransactions(); if (!rows.length) return;
   const fields = [['Tanggal', 'Jenis', 'Kategori', 'Keterangan', 'Catatan', 'Pemasukan', 'Pengeluaran'], ...rows.map((item) => [item.date, item.type === 'income' ? 'Pemasukan' : 'Pengeluaran', item.category, item.description, item.note, item.type === 'income' ? item.amount : '', item.type === 'expense' ? item.amount : ''])];
   const csv = '\uFEFF' + fields.map((row) => row.map(escapeCsv).join(',')).join('\r\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  const link = document.createElement('a'); link.href = url; link.download = `transaksi-bendahara-${new Date().toLocaleDateString('en-CA')}.csv`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const today = new Date(); const dateStamp = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const link = document.createElement('a'); link.href = url; link.download = `transaksi-bendahara-${dateStamp}.csv`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   showToast(`${rows.length} transaksi diunduh sebagai CSV.`);
 }
 $('#addButton').addEventListener('click', () => openForm());
